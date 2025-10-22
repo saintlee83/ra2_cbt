@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 의료기기 CBT 시험 시스템
 
-## Getting Started
+Next.js 기반 의료기기 관련 CBT (Computer-Based Testing) 온라인 시험 시스템입니다.
 
-First, run the development server:
+## 주요 기능
+
+- ✅ 한국어 인터페이스
+- ✅ 다중 시험 선택
+- ✅ 문제별 난이도 표시
+- ✅ 실시간 답안 체크
+- ✅ 상세한 해설 제공
+- ✅ 문제 네비게이션
+- ✅ 시험 결과 및 점수 확인
+- ✅ 반응형 디자인 (모바일 지원)
+
+## 시작하기
+
+### 개발 서버 실행
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+브라우저에서 [http://localhost:3000](http://localhost:3000)을 열어 확인하세요.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 프로덕션 빌드
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## 프로젝트 구조
 
-To learn more about Next.js, take a look at the following resources:
+```
+cbt-app/
+├── app/                    # Next.js App Router
+│   ├── page.tsx           # 메인 페이지 (시험 목록)
+│   ├── quiz/[filename]/   # 시험 페이지 (동적 라우트)
+│   ├── results/           # 결과 페이지
+│   └── layout.tsx         # 레이아웃
+├── components/            # React 컴포넌트
+│   └── QuizInterface.tsx  # 시험 인터페이스 컴포넌트
+├── lib/                   # 유틸리티 함수
+│   └── quiz-loader.ts     # 시험 데이터 로더
+├── types/                 # TypeScript 타입 정의
+│   └── quiz.ts            # 시험 관련 타입
+└── public/                # 정적 파일
+    └── quiz_sets/         # 시험 데이터 (JSON)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 시험 데이터 추가
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+새로운 시험을 추가하려면 `public/quiz_sets/` 디렉토리에 JSON 파일을 추가하세요.
 
-## Deploy on Vercel
+### JSON 형식 예시
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```json
+{
+  "examTitle": "시험 제목",
+  "questions": [
+    {
+      "id": 1,
+      "difficulty": "중",
+      "question": "문제 내용",
+      "options": [
+        "선택지 1",
+        "선택지 2",
+        "선택지 3",
+        "선택지 4"
+      ],
+      "correctAnswer": 0,
+      "explanation": "정답 해설",
+      "reference": "참고 자료"
+    }
+  ]
+}
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 기술 스택
+
+- **Framework**: Next.js 16.0 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Runtime**: Node.js
+
+## 배포
+
+### Vercel (권장)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
+
+Vercel을 통해 간편하게 배포할 수 있습니다.
+
+## 라이선스
+
+MIT License
