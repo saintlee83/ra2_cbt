@@ -198,10 +198,10 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
 
   // Check if answer is correct (considering shuffled options)
   let isCorrect = false;
-  if (currentAnswer?.selectedAnswer !== null) {
+  if (currentAnswer && currentAnswer.selectedAnswer !== null) {
     const userOriginalAnswer = shuffledOptions[currentQuestion.id]
       ? shuffledOptions[currentQuestion.id].mapping[
-          currentAnswer.selectedAnswer!
+          currentAnswer.selectedAnswer
         ]
       : currentAnswer.selectedAnswer;
     isCorrect = userOriginalAnswer === currentQuestion.correctAnswer;
