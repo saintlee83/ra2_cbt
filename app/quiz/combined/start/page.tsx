@@ -42,7 +42,7 @@ export default function CombinedQuizPage() {
 
         quizzes.forEach((quiz) => {
           // Reassign unique IDs to each question
-          const questionsWithNewIds = quiz.questions.map((q) => ({
+          const questionsWithNewIds = quiz.questions.map((q: Question) => ({
             ...q,
             id: questionIdCounter++,
           }));
