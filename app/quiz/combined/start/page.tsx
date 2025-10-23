@@ -35,12 +35,18 @@ export default function CombinedQuizPage() {
 
         const quizzes = await Promise.all(quizPromises);
 
-        // Combine all questions
+        // Combine all questions with unique IDs
         const allQuestions: Question[] = [];
         const titles: string[] = [];
+        let questionIdCounter = 1;
 
         quizzes.forEach((quiz) => {
-          allQuestions.push(...quiz.questions);
+          // Reassign unique IDs to each question
+          const questionsWithNewIds = quiz.questions.map((q) => ({
+            ...q,
+            id: questionIdCounter++,
+          }));
+          allQuestions.push(...questionsWithNewIds);
           titles.push(quiz.examTitle);
         });
 
