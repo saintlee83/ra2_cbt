@@ -1,12 +1,32 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Quiz, UserAnswer, QuizSettings, Question } from "@/types/quiz";
+import {
+  Quiz,
+  UserAnswer,
+  QuizSettings,
+  Question,
+  ShortAnswerQuestion,
+  MultipleChoiceQuestion,
+} from "@/types/quiz";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface QuizInterfaceProps {
   quiz: Quiz;
+}
+
+// Type guard functions
+function isShortAnswerQuestion(
+  question: Question
+): question is ShortAnswerQuestion {
+  return question.type === "short_answer";
+}
+
+function isMultipleChoiceQuestion(
+  question: Question
+): question is MultipleChoiceQuestion {
+  return !question.type || question.type === "multiple_choice";
 }
 
 // Fisher-Yates shuffle algorithm
@@ -58,10 +78,14 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
   }, [quiz.questions]);
 
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>(
-    filteredQuestions.map((q) => ({ questionId: q.id, selectedAnswer: null }))
+    filteredQuestions.map((q) => ({
+      questionId: q.id,
+      selectedAnswer: null,
+      textAnswer: isShortAnswerQuestion(q) ? {} : undefined,
+    }))
   );
 
-  // Shuffle options if needed
+  // Shuffle options if needed (only for multiple choice questions)
   const [shuffledOptions, setShuffledOptions] = useState<{
     [key: number]: { options: string[]; mapping: number[] };
   }>({});
@@ -80,14 +104,16 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
       } = {};
 
       filteredQuestions.forEach((question) => {
-        const indices = question.options.map((_, i) => i);
-        const shuffledIndices = shuffleArray(indices);
-        const shuffledOpts = shuffledIndices.map((i) => question.options[i]);
+        if (isMultipleChoiceQuestion(question)) {
+          const indices = question.options.map((_, i) => i);
+          const shuffledIndices = shuffleArray(indices);
+          const shuffledOpts = shuffledIndices.map((i) => question.options[i]);
 
-        newShuffledOptions[question.id] = {
-          options: shuffledOpts,
-          mapping: shuffledIndices,
-        };
+          newShuffledOptions[question.id] = {
+            options: shuffledOpts,
+            mapping: shuffledIndices,
+          };
+        }
       });
 
       setShuffledOptions(newShuffledOptions);
@@ -99,15 +125,17 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
     (a) => a.questionId === currentQuestion.id
   );
 
-  // Get display options and correct answer mapping
-  const displayOptions =
-    shuffledOptions[currentQuestion.id]?.options || currentQuestion.options;
-  const answerMapping =
-    shuffledOptions[currentQuestion.id]?.mapping ||
-    currentQuestion.options.map((_, i) => i);
-  const mappedCorrectAnswer = answerMapping.indexOf(
-    currentQuestion.correctAnswer
-  );
+  // Get display options and correct answer mapping (for multiple choice only)
+  const displayOptions = isMultipleChoiceQuestion(currentQuestion)
+    ? shuffledOptions[currentQuestion.id]?.options || currentQuestion.options
+    : [];
+  const answerMapping = isMultipleChoiceQuestion(currentQuestion)
+    ? shuffledOptions[currentQuestion.id]?.mapping ||
+      currentQuestion.options.map((_, i) => i)
+    : [];
+  const mappedCorrectAnswer = isMultipleChoiceQuestion(currentQuestion)
+    ? answerMapping.indexOf(currentQuestion.correctAnswer)
+    : -1;
 
   const handleAnswerSelect = (optionIndex: number) => {
     setUserAnswers((prev) =>
@@ -120,8 +148,27 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
     setShowExplanation(false);
   };
 
+  const handleTextAnswerChange = (key: string, value: string) => {
+    setUserAnswers((prev) =>
+      prev.map((a) =>
+        a.questionId === currentQuestion.id
+          ? { ...a, textAnswer: { ...a.textAnswer, [key]: value } }
+          : a
+      )
+    );
+    setShowExplanation(false);
+  };
+
   const handleSubmitAnswer = () => {
-    if (currentAnswer?.selectedAnswer !== null) {
+    if (isShortAnswerQuestion(currentQuestion)) {
+      // Check if all text answers are provided
+      const allAnswered = Object.keys(currentQuestion.correctAnswer).every(
+        (key) => currentAnswer?.textAnswer?.[key]?.trim()
+      );
+      if (allAnswered) {
+        setShowExplanation(true);
+      }
+    } else if (currentAnswer?.selectedAnswer !== null) {
       setShowExplanation(true);
     }
   };
@@ -150,14 +197,22 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
         );
         if (!question) return false;
 
-        // Map back to original answer if options were shuffled
-        let userOriginalAnswer = answer.selectedAnswer;
-        if (userOriginalAnswer !== null && shuffledOptions[question.id]) {
-          userOriginalAnswer =
-            shuffledOptions[question.id].mapping[userOriginalAnswer];
+        if (isShortAnswerQuestion(question)) {
+          // Check if all text answers match (case-insensitive, all whitespace removed)
+          return Object.keys(question.correctAnswer).every(
+            (key) =>
+              answer.textAnswer?.[key]?.replace(/\s+/g, "").toLowerCase() ===
+              question.correctAnswer[key].replace(/\s+/g, "").toLowerCase()
+          );
+        } else {
+          // Map back to original answer if options were shuffled
+          let userOriginalAnswer = answer.selectedAnswer;
+          if (userOriginalAnswer !== null && shuffledOptions[question.id]) {
+            userOriginalAnswer =
+              shuffledOptions[question.id].mapping[userOriginalAnswer];
+          }
+          return userOriginalAnswer === question.correctAnswer;
         }
-
-        return userOriginalAnswer === question.correctAnswer;
       }).length,
       answers: userAnswers.map((answer) => {
         const question = filteredQuestions.find(
@@ -167,22 +222,38 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
           return {
             questionId: answer.questionId,
             selectedAnswer: answer.selectedAnswer,
+            textAnswer: answer.textAnswer,
             correctAnswer: -1,
             isCorrect: false,
           };
 
-        let userOriginalAnswer = answer.selectedAnswer;
-        if (userOriginalAnswer !== null && shuffledOptions[question.id]) {
-          userOriginalAnswer =
-            shuffledOptions[question.id].mapping[userOriginalAnswer];
-        }
+        if (isShortAnswerQuestion(question)) {
+          const isCorrect = Object.keys(question.correctAnswer).every(
+            (key) =>
+              answer.textAnswer?.[key]?.replace(/\s+/g, "").toLowerCase() ===
+              question.correctAnswer[key].replace(/\s+/g, "").toLowerCase()
+          );
+          return {
+            questionId: answer.questionId,
+            selectedAnswer: null,
+            textAnswer: answer.textAnswer,
+            correctAnswer: question.correctAnswer,
+            isCorrect,
+          };
+        } else {
+          let userOriginalAnswer = answer.selectedAnswer;
+          if (userOriginalAnswer !== null && shuffledOptions[question.id]) {
+            userOriginalAnswer =
+              shuffledOptions[question.id].mapping[userOriginalAnswer];
+          }
 
-        return {
-          questionId: answer.questionId,
-          selectedAnswer: userOriginalAnswer,
-          correctAnswer: question.correctAnswer,
-          isCorrect: userOriginalAnswer === question.correctAnswer,
-        };
+          return {
+            questionId: answer.questionId,
+            selectedAnswer: userOriginalAnswer,
+            correctAnswer: question.correctAnswer,
+            isCorrect: userOriginalAnswer === question.correctAnswer,
+          };
+        }
       }),
     };
 
@@ -191,20 +262,42 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
     router.push("/results");
   };
 
-  const answeredCount = userAnswers.filter(
-    (a) => a.selectedAnswer !== null
-  ).length;
-  const isAnswered = currentAnswer?.selectedAnswer !== null;
+  const answeredCount = userAnswers.filter((a, index) => {
+    const question = filteredQuestions[index];
+    if (isShortAnswerQuestion(question)) {
+      return Object.keys(question.correctAnswer).every((key) =>
+        a.textAnswer?.[key]?.trim()
+      );
+    }
+    return a.selectedAnswer !== null;
+  }).length;
 
-  // Check if answer is correct (considering shuffled options)
+  const isAnswered = isShortAnswerQuestion(currentQuestion)
+    ? Object.keys(currentQuestion.correctAnswer).every((key) =>
+        currentAnswer?.textAnswer?.[key]?.trim()
+      )
+    : currentAnswer?.selectedAnswer !== null;
+
+  // Check if answer is correct
   let isCorrect = false;
-  if (currentAnswer && currentAnswer.selectedAnswer !== null) {
-    const userOriginalAnswer = shuffledOptions[currentQuestion.id]
-      ? shuffledOptions[currentQuestion.id].mapping[
-          currentAnswer.selectedAnswer
-        ]
-      : currentAnswer.selectedAnswer;
-    isCorrect = userOriginalAnswer === currentQuestion.correctAnswer;
+  if (currentAnswer) {
+    if (isShortAnswerQuestion(currentQuestion)) {
+      isCorrect = Object.keys(currentQuestion.correctAnswer).every(
+        (key) =>
+          currentAnswer.textAnswer?.[key]?.replace(/\s+/g, "").toLowerCase() ===
+          currentQuestion.correctAnswer[key].replace(/\s+/g, "").toLowerCase()
+      );
+    } else if (
+      isMultipleChoiceQuestion(currentQuestion) &&
+      currentAnswer.selectedAnswer !== null
+    ) {
+      const userOriginalAnswer = shuffledOptions[currentQuestion.id]
+        ? shuffledOptions[currentQuestion.id].mapping[
+            currentAnswer.selectedAnswer
+          ]
+        : currentAnswer.selectedAnswer;
+      isCorrect = userOriginalAnswer === currentQuestion.correctAnswer;
+    }
   }
 
   return (
@@ -265,83 +358,175 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
             </p>
           </div>
 
-          {/* Options */}
-          <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
-            {displayOptions.map((option, index) => {
-              const isSelected = currentAnswer?.selectedAnswer === index;
-              const isCorrectOption = index === mappedCorrectAnswer;
-              const showCorrect = showExplanation && isCorrectOption;
-              const showIncorrect = showExplanation && isSelected && !isCorrect;
+          {/* Multiple Choice Options */}
+          {isMultipleChoiceQuestion(currentQuestion) && (
+            <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
+              {displayOptions.map((option, index) => {
+                const isSelected = currentAnswer?.selectedAnswer === index;
+                const isCorrectOption = index === mappedCorrectAnswer;
+                const showCorrect = showExplanation && isCorrectOption;
+                const showIncorrect =
+                  showExplanation && isSelected && !isCorrect;
 
-              return (
-                <button
-                  key={index}
-                  onClick={() => !showExplanation && handleAnswerSelect(index)}
-                  disabled={showExplanation}
-                  className={`w-full text-left p-3 sm:p-4 rounded-lg border-2 transition-all ${
-                    showCorrect
-                      ? "border-green-500 bg-green-50"
-                      : showIncorrect
-                      ? "border-red-500 bg-red-50"
-                      : isSelected
-                      ? "border-indigo-500 bg-indigo-50"
-                      : "border-gray-200 hover:border-indigo-300 hover:bg-gray-50"
-                  } ${
-                    showExplanation ? "cursor-not-allowed" : "cursor-pointer"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <span
-                      className={`shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
-                        showCorrect
-                          ? "bg-green-500 text-white"
-                          : showIncorrect
-                          ? "bg-red-500 text-white"
-                          : isSelected
-                          ? "bg-indigo-500 text-white"
-                          : "bg-gray-200 text-gray-700"
-                      }`}
+                return (
+                  <button
+                    key={index}
+                    onClick={() =>
+                      !showExplanation && handleAnswerSelect(index)
+                    }
+                    disabled={showExplanation}
+                    className={`w-full text-left p-3 sm:p-4 rounded-lg border-2 transition-all ${
+                      showCorrect
+                        ? "border-green-500 bg-green-50"
+                        : showIncorrect
+                        ? "border-red-500 bg-red-50"
+                        : isSelected
+                        ? "border-indigo-500 bg-indigo-50"
+                        : "border-gray-200 hover:border-indigo-300 hover:bg-gray-50"
+                    } ${
+                      showExplanation ? "cursor-not-allowed" : "cursor-pointer"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <span
+                        className={`shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
+                          showCorrect
+                            ? "bg-green-500 text-white"
+                            : showIncorrect
+                            ? "bg-red-500 text-white"
+                            : isSelected
+                            ? "bg-indigo-500 text-white"
+                            : "bg-gray-200 text-gray-700"
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+                      <span className="text-sm sm:text-base text-gray-800 flex-1 break-words">
+                        {option}
+                      </span>
+                      {showCorrect && (
+                        <svg
+                          className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      )}
+                      {showIncorrect && (
+                        <svg
+                          className="w-5 h-5 sm:w-6 sm:h-6 text-red-500 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Short Answer Input Fields */}
+          {isShortAnswerQuestion(currentQuestion) && (
+            <div className="space-y-4 mb-4 sm:mb-6">
+              {Object.keys(currentQuestion.correctAnswer).map((key) => {
+                const value = currentAnswer?.textAnswer?.[key] || "";
+                const isCorrectAnswer =
+                  showExplanation &&
+                  value.replace(/\s+/g, "").toLowerCase() ===
+                    currentQuestion.correctAnswer[key]
+                      .replace(/\s+/g, "")
+                      .toLowerCase();
+                const isIncorrectAnswer = showExplanation && !isCorrectAnswer;
+
+                return (
+                  <div key={key} className="space-y-2">
+                    <label
+                      htmlFor={`answer-${key}`}
+                      className="block text-sm sm:text-base font-semibold text-gray-700"
                     >
-                      {index + 1}
-                    </span>
-                    <span className="text-sm sm:text-base text-gray-800 flex-1 break-words">
-                      {option}
-                    </span>
-                    {showCorrect && (
-                      <svg
-                        className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    )}
-                    {showIncorrect && (
-                      <svg
-                        className="w-5 h-5 sm:w-6 sm:h-6 text-red-500 shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
+                      {key}.
+                    </label>
+                    <div className="relative">
+                      <input
+                        id={`answer-${key}`}
+                        type="text"
+                        value={value}
+                        onChange={(e) =>
+                          !showExplanation &&
+                          handleTextAnswerChange(key, e.target.value)
+                        }
+                        disabled={showExplanation}
+                        placeholder="답을 입력하세요"
+                        className={`w-full p-3 sm:p-4 rounded-lg border-2 transition-all text-sm sm:text-base text-gray-900 ${
+                          isCorrectAnswer
+                            ? "border-green-500 bg-green-50"
+                            : isIncorrectAnswer
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 focus:border-indigo-500 focus:outline-none"
+                        } ${
+                          showExplanation ? "cursor-not-allowed" : "cursor-text"
+                        }`}
+                      />
+                      {showExplanation && (
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                          {isCorrectAnswer ? (
+                            <svg
+                              className="w-5 h-5 sm:w-6 sm:h-6 text-green-500"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="w-5 h-5 sm:w-6 sm:h-6 text-red-500"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {showExplanation && isIncorrectAnswer && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        정답: {currentQuestion.correctAnswer[key]}
+                      </p>
                     )}
                   </div>
-                </button>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Submit Button */}
           {!showExplanation && (

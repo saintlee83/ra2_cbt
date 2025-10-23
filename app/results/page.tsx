@@ -11,7 +11,8 @@ interface QuizResults {
   answers: {
     questionId: number;
     selectedAnswer: number | null;
-    correctAnswer: number;
+    textAnswer?: Record<string, string>;
+    correctAnswer: number | Record<string, string>;
     isCorrect: boolean;
   }[];
 }
@@ -115,71 +116,120 @@ export default function ResultsPage() {
               문제별 결과
             </h2>
             <div className="space-y-2 sm:space-y-3">
-              {results.answers.map((answer) => (
-                <div
-                  key={answer.questionId}
-                  className={`flex items-center justify-between p-3 sm:p-4 rounded-lg ${
-                    answer.isCorrect
-                      ? "bg-green-50 border-2 border-green-200"
-                      : "bg-red-50 border-2 border-red-200"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div
-                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
-                        answer.isCorrect
-                          ? "bg-green-500 text-white"
-                          : "bg-red-500 text-white"
-                      }`}
-                    >
-                      {answer.questionId}
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-800 text-sm sm:text-base">
-                        문제 {answer.questionId}
+              {results.answers.map((answer) => {
+                const isShortAnswer = typeof answer.correctAnswer === "object";
+
+                return (
+                  <div
+                    key={answer.questionId}
+                    className={`p-3 sm:p-4 rounded-lg ${
+                      answer.isCorrect
+                        ? "bg-green-50 border-2 border-green-200"
+                        : "bg-red-50 border-2 border-red-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
+                            answer.isCorrect
+                              ? "bg-green-500 text-white"
+                              : "bg-red-500 text-white"
+                          }`}
+                        >
+                          {answer.questionId}
+                        </div>
+                        <div className="font-medium text-gray-800 text-sm sm:text-base">
+                          문제 {answer.questionId}
+                        </div>
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600">
+                      <div className="shrink-0">
+                        {answer.isCorrect ? (
+                          <svg
+                            className="w-5 h-5 sm:w-6 sm:h-6 text-green-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        ) : (
+                          <svg
+                            className="w-5 h-5 sm:w-6 sm:h-6 text-red-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+
+                    {isShortAnswer ? (
+                      <div className="ml-11 sm:ml-13 space-y-1">
+                        {Object.keys(
+                          answer.correctAnswer as Record<string, string>
+                        ).map((key) => {
+                          const userAnswer = answer.textAnswer?.[key] || "";
+                          const correctAnswerValue = (
+                            answer.correctAnswer as Record<string, string>
+                          )[key];
+                          const isKeyCorrect =
+                            userAnswer.replace(/\s+/g, "").toLowerCase() ===
+                            correctAnswerValue
+                              .replace(/\s+/g, "")
+                              .toLowerCase();
+
+                          return (
+                            <div
+                              key={key}
+                              className="text-xs sm:text-sm text-gray-600"
+                            >
+                              <span className="font-semibold">{key}.</span>{" "}
+                              <span
+                                className={
+                                  isKeyCorrect
+                                    ? "text-green-700"
+                                    : "text-red-700"
+                                }
+                              >
+                                입력: {userAnswer || "(미입력)"}
+                              </span>
+                              {!isKeyCorrect && (
+                                <>
+                                  {" | "}
+                                  <span className="text-gray-700">
+                                    정답: {correctAnswerValue}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="ml-11 sm:ml-13 text-xs sm:text-sm text-gray-600">
                         {answer.selectedAnswer !== null
                           ? `선택: ${answer.selectedAnswer + 1}번`
                           : "미선택"}
                         {" | "}
-                        정답: {answer.correctAnswer + 1}번
+                        정답: {(answer.correctAnswer as number) + 1}번
                       </div>
-                    </div>
-                  </div>
-                  <div className="shrink-0">
-                    {answer.isCorrect ? (
-                      <svg
-                        className="w-5 h-5 sm:w-6 sm:h-6 text-green-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        className="w-5 h-5 sm:w-6 sm:h-6 text-red-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

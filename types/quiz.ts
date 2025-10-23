@@ -1,12 +1,26 @@
-export interface Question {
+// Base question interface
+export interface BaseQuestion {
   id: number;
   difficulty: string;
   question: string;
-  options: string[];
-  correctAnswer: number;
   explanation: string;
   reference: string;
 }
+
+// Multiple choice question
+export interface MultipleChoiceQuestion extends BaseQuestion {
+  type?: "multiple_choice";
+  options: string[];
+  correctAnswer: number;
+}
+
+// Short answer question
+export interface ShortAnswerQuestion extends BaseQuestion {
+  type: "short_answer";
+  correctAnswer: Record<string, string>; // e.g., { "ㄱ": "개발 경위", "ㄴ": "취급자 안전" }
+}
+
+export type Question = MultipleChoiceQuestion | ShortAnswerQuestion;
 
 export interface Quiz {
   examTitle: string;
@@ -21,6 +35,7 @@ export interface QuizFile {
 export interface UserAnswer {
   questionId: number;
   selectedAnswer: number | null;
+  textAnswer?: Record<string, string>; // For short answer questions
 }
 
 export interface QuizResult {
@@ -30,7 +45,8 @@ export interface QuizResult {
   answers: {
     questionId: number;
     selectedAnswer: number | null;
-    correctAnswer: number;
+    textAnswer?: Record<string, string>;
+    correctAnswer: number | Record<string, string>;
     isCorrect: boolean;
   }[];
 }
