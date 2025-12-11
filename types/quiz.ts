@@ -51,12 +51,18 @@ export interface QuizResult {
   }[];
 }
 
-export type QuizMode = "all" | "random" | "difficulty" | "custom";
+export type QuizMode = "all" | "random" | "difficulty" | "custom" | "range";
+
+export interface QuestionRange {
+  start: number;
+  end: number;
+}
 
 export interface QuizSettings {
   mode: QuizMode;
   questionCount?: number; // 랜덤 모드나 제한할 때
   difficulty?: "상" | "중" | "하"; // 난이도별 필터
+  questionRanges?: QuestionRange[]; // 문제 범위 (예: 1-10, 20-30)
   shuffleQuestions?: boolean; // 문제 순서 섞기
   shuffleOptions?: boolean; // 선택지 순서 섞기
 }

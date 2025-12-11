@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { QuizSettings } from "@/types/quiz";
+import { QuizSettings, QuestionRange } from "@/types/quiz";
 
 interface QuizFileWithMeta {
   filename: string;
@@ -17,11 +17,13 @@ export default function CombinedQuizSetupPage() {
   const [quizFiles, setQuizFiles] = useState<QuizFileWithMeta[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [totalQuestions, setTotalQuestions] = useState(0);
+  const [rangeInput, setRangeInput] = useState("");
 
   const [settings, setSettings] = useState<QuizSettings>({
     mode: "all",
     questionCount: undefined,
     difficulty: undefined,
+    questionRanges: undefined,
     shuffleQuestions: false,
     shuffleOptions: false,
   });
@@ -82,14 +84,63 @@ export default function CombinedQuizSetupPage() {
     setSelectedFiles([]);
   };
 
+  const parseRanges = (input: string): QuestionRange[] | undefined => {
+    if (!input.trim()) return undefined;
+
+    try {
+      const ranges: QuestionRange[] = [];
+      const parts = input.split(",").map((p) => p.trim());
+
+      for (const part of parts) {
+        if (part.includes("-")) {
+          const [start, end] = part.split("-").map((n) => parseInt(n.trim()));
+          if (
+            !isNaN(start) &&
+            !isNaN(end) &&
+            start > 0 &&
+            end > 0 &&
+            start <= end &&
+            end <= totalQuestions
+          ) {
+            ranges.push({ start, end });
+          } else {
+            return undefined; // Invalid range
+          }
+        } else {
+          const num = parseInt(part);
+          if (!isNaN(num) && num > 0 && num <= totalQuestions) {
+            ranges.push({ start: num, end: num });
+          } else {
+            return undefined; // Invalid number
+          }
+        }
+      }
+
+      return ranges.length > 0 ? ranges : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
   const handleStartQuiz = () => {
     if (selectedFiles.length === 0) {
       alert("최소 1개 이상의 과목을 선택해주세요.");
       return;
     }
 
+    // Parse ranges if in range mode
+    let finalSettings = { ...settings };
+    if (settings.mode === "range") {
+      const ranges = parseRanges(rangeInput);
+      if (!ranges) {
+        alert("올바른 범위를 입력해주세요. (예: 1-10, 20-30, 45)");
+        return;
+      }
+      finalSettings.questionRanges = ranges;
+    }
+
     // Store settings in sessionStorage
-    sessionStorage.setItem("quizSettings", JSON.stringify(settings));
+    sessionStorage.setItem("quizSettings", JSON.stringify(finalSettings));
     sessionStorage.setItem("selectedQuizFiles", JSON.stringify(selectedFiles));
     router.push("/quiz/combined/start");
   };
@@ -312,8 +363,60 @@ export default function CombinedQuizSetupPage() {
                 <div className="font-semibold text-gray-800 mb-1">커스텀</div>
                 <div className="text-sm text-gray-600">세부 설정 조합</div>
               </button>
+
+              <button
+                onClick={() =>
+                  setSettings({
+                    ...settings,
+                    mode: "range",
+                    questionCount: undefined,
+                    difficulty: undefined,
+                  })
+                }
+                className={`p-4 rounded-lg border-2 transition-all text-left ${
+                  settings.mode === "range"
+                    ? "border-indigo-500 bg-indigo-50"
+                    : "border-gray-200 hover:border-indigo-300"
+                }`}
+              >
+                <div className="font-semibold text-gray-800 mb-1">
+                  범위 지정
+                </div>
+                <div className="text-sm text-gray-600">
+                  원하는 문제 번호 지정
+                </div>
+              </button>
             </div>
           </div>
+
+          {/* Range Input for Range Mode */}
+          {settings.mode === "range" && totalQuestions > 0 && (
+            <div>
+              <label className="block text-lg font-semibold text-gray-800 mb-3">
+                문제 범위 입력
+              </label>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={rangeInput}
+                  onChange={(e) => setRangeInput(e.target.value)}
+                  placeholder="예: 1-10, 20-30, 45"
+                  className="w-full p-4 rounded-lg border-2 border-gray-300 focus:border-indigo-500 focus:outline-none text-gray-900"
+                />
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>입력 방법:</strong>
+                  </p>
+                  <ul className="text-sm text-blue-700 mt-2 space-y-1">
+                    <li>• 범위: 1-10 (1번부터 10번까지)</li>
+                    <li>• 여러 범위: 1-10, 20-30 (쉼표로 구분)</li>
+                    <li>• 단일 문제: 45 (45번 문제만)</li>
+                    <li>• 조합 가능: 1-5, 10, 15-20</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Question Count for Random Mode */}
           {settings.mode === "random" && totalQuestions > 0 && (

@@ -55,23 +55,42 @@ export default function QuizInterface({ quiz }: QuizInterfaceProps) {
     const settings: QuizSettings = JSON.parse(settingsStr);
     let questions = [...quiz.questions];
 
-    // Filter by difficulty
-    if (settings.difficulty) {
-      questions = questions.filter((q) => q.difficulty === settings.difficulty);
+    // Filter by range if specified
+    if (settings.mode === "range" && settings.questionRanges) {
+      const rangeQuestions: Question[] = [];
+      const questionMap = new Map(questions.map((q) => [q.id, q]));
+
+      for (const range of settings.questionRanges) {
+        for (let i = range.start; i <= range.end; i++) {
+          const question = questionMap.get(i);
+          if (question && !rangeQuestions.includes(question)) {
+            rangeQuestions.push(question);
+          }
+        }
+      }
+
+      questions = rangeQuestions;
+    } else {
+      // Filter by difficulty
+      if (settings.difficulty) {
+        questions = questions.filter(
+          (q) => q.difficulty === settings.difficulty
+        );
+      }
+
+      // Limit question count
+      if (settings.questionCount && settings.questionCount < questions.length) {
+        if (settings.mode === "random") {
+          questions = shuffleArray(questions).slice(0, settings.questionCount);
+        } else {
+          questions = questions.slice(0, settings.questionCount);
+        }
+      }
     }
 
-    // Shuffle questions if needed
+    // Shuffle questions if needed (after filtering)
     if (settings.shuffleQuestions) {
       questions = shuffleArray(questions);
-    }
-
-    // Limit question count
-    if (settings.questionCount && settings.questionCount < questions.length) {
-      if (settings.mode === "random") {
-        questions = shuffleArray(questions).slice(0, settings.questionCount);
-      } else {
-        questions = questions.slice(0, settings.questionCount);
-      }
     }
 
     return questions;
